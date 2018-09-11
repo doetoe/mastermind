@@ -21,7 +21,7 @@ This means you tried the combination `rygb` and this resulted in 1 black, 2 whit
 
     You could try rgog
 
-except for the first one, which will be something like 2,1,1, meaning that the optimal move is to try two equal colors, and two other ones.
+except for the first one, which will be something like `2,1,1`, meaning that the optimal move is to try two equal colors, and two other ones.
 
 ### Contact ###
 
