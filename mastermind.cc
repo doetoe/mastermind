@@ -46,9 +46,31 @@ static void partitions(int n, int k, int mx,
   }
 }
 
-void partitions(int n, int k, std::vector<std::vector<int>>* result) {
+void partitions(int n, int k, vector<vector<int>>* result) {
   std::vector<int> prefix;
   return partitions(n, k, n, result, prefix);
+}
+
+void MasterMind::ColorClasses(const string& intent, vector<string>* classes) const {
+  vector<int> counter(colors_.size(), 0);
+  for (auto color: intent)
+    counter[color_index_.at(color)]++;
+  classes->clear();
+  int i = 0;
+  for (auto count: counter) {
+    if (count >= classes->size()) {
+      classes->resize(count + 1);
+    }
+    (*classes)[count].push_back(colors_[i]);
+    i++;
+  }
+  // remove empty classes
+  remove(classes->begin(), classes->end(), "");
+}
+
+void MasterMind::PositionClasses(const string& intent,
+                                 vector<int>* classes) const {
+  // to be implemented
 }
 
 std::string MasterMind::cc2string(const ColorComb& cc) const {
@@ -225,6 +247,44 @@ double MasterMind::Update(const string& intent, int black, int white) {
   return log2(static_cast<double>(new_candidates.size()) / target_candidates_.size());
 }
 
+int main_play(int argc, char *argv[]) {
+// int main(int argc, char *argv[]) {
+  if (argc != 3) {
+    std::printf("Usage: mastermind colors positions\n");
+    exit(0);
+  }
+
+  MasterMind game_assistant(argv[1], atoi(argv[2]));
+
+  vector<int> intent_class = game_assistant.ChooseInitialIntent();
+  
+  cout << "You could try any string with the following grouping of colors: ";
+  int last = intent_class.back();
+  intent_class.pop_back();
+  for (auto num: intent_class)
+    cout << num << ",";
+  cout << last << endl;
+
+  do {
+    cout << "intent black white> ";
+    string intent;
+    int black, white;
+    cin >> intent >> black >> white;
+    
+    printf("The entropy (expected information gain) of your intent is %.2f bits\n",
+           game_assistant.Entropy(intent));
+    
+    double information = game_assistant.Update(intent, black, white);
+    printf("There are %d possible targets left\n", game_assistant.num_candidates());
+    printf("You gained %.2f bits of information\n", information);
+
+    printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
+  } while (game_assistant.num_candidates() != 1);
+
+  printf("The only possibility is %s\n", game_assistant.target_candidates_begin()->c_str());
+}
+
+/////////////////////////////  TESTS  /////////////////////////////////////
 
 int main_test_constructor(int argc, char *argv[]) {
   if (argc < 3) {
@@ -276,6 +336,21 @@ int main_test_candidates(int argc, char *argv[]) {
   for (auto it = colors.target_candidates_begin();
        it < colors.target_candidates_end(); ++it)
     printf("%s\n", it->c_str());
+}
+
+// int main_test_color_classes(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
+  if (argc < 3) {
+    std::printf("Usage: mastermind colors intent\n");
+    exit(0);
+  }
+
+  MasterMind colors(argv[1], strlen(argv[2]));
+
+  vector<string> classes;
+  colors.ColorClasses(argv[2], &classes);
+  for (auto cc: classes)
+    printf("%s\n", cc.c_str());
 }
 
 int main_test_entropy(int argc, char *argv[]) {
@@ -391,42 +466,5 @@ int main_test_to_from_string(int argc, char *argv[]) {
   }
 
   return MasterMind::test_to_from_string(argv[1], argv[2], argv[3]);
-}
-
-// int main_play(int argc, char *argv[]) {
-int main(int argc, char *argv[]) {
-  if (argc != 3) {
-    std::printf("Usage: mastermind colors positions\n");
-    exit(0);
-  }
-
-  MasterMind colors(argv[1], atoi(argv[2]));
-
-  vector<int> intent_class = colors.ChooseInitialIntent();
-  
-  cout << "You could try any string with the following grouping of colors: ";
-  int last = intent_class.back();
-  intent_class.pop_back();
-  for (auto num: intent_class)
-    cout << num << ",";
-  cout << last << endl;
-
-  do {
-    cout << "intent black white> ";
-    string intent;
-    int black, white;
-    cin >> intent >> black >> white;
-    
-    printf("The entropy (expected information gain) of your intent is %.2f bits\n",
-           colors.Entropy(intent));
-    
-    double information = colors.Update(intent, black, white);
-    printf("There are %d possible targets left\n", colors.num_candidates());
-    printf("You gained %.2f bits of information\n", information);
-
-    printf("You could try %s\n", colors.ChooseIntent().c_str());
-  } while (colors.num_candidates() != 1);
-
-  printf("The only possibility is %s\n", colors.target_candidates_begin()->c_str());
 }
 

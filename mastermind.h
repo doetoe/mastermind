@@ -85,6 +85,18 @@ class MasterMind {
   
   int num_positions() const { return num_positions_; }
   const std::string& colors() const { return colors_; }
+
+  // Colors in the same class are equivalent if they can be freely permuted
+  // without changing the entropy if all known information arises from an
+  // evaluation of the specified intent.
+  void ColorClasses(const std::string& intent,
+                    std::vector<std::string>* classes) const;
+
+  // Positions in the same class are equivalent if they can be freely permuted
+  // without changing the entropy if all known information arises from an
+  // evaluation of the specified intent.
+  void PositionClasses(const std::string& intent,
+                       std::vector<int>* classes) const;
   
   // MasterMind(const std::string& colors, const std::string& target)
   //     : colors_(colors),
@@ -100,6 +112,8 @@ class MasterMind {
   //   // init();
   // }
 
+  // for a given target (hidden combination), return the number of black/white
+  // for the given intent    
   pair<int,int> Evaluate(const std::string& target, const std::string& intent) const;
   
   // The events are the evaluations, 14 of them for four positions.
@@ -112,7 +126,9 @@ class MasterMind {
   // partitions of the number of positions in at most n summands.
   // The best partition is returned.
   std::vector<int> ChooseInitialIntent() const;
-  
+
+  // In the given state, return an intent of maximal entropy that actually is a
+  // possible candidate
   std::string ChooseIntent() const;
   
   // Updates the candidate lists assuming the passed intent resulted in the
