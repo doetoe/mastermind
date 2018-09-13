@@ -53,7 +53,8 @@ void partitions(int n, int k, vector<vector<int>>* result) {
 // NOTE: it would actually be more efficient if we would separately have
 // a vector<string> of classes, and an unordered_map<char, int> referencing
 // them, but not significantly, and it would be harder to use.
-void MasterMind::ColorClasses(const string& src_intent, unordered_map<char, string>* classes) const {
+void MasterMind::ColorClasses(const string& src_intent,
+                              unordered_map<char, string>* classes) const {
   vector<string> class_list;
   unordered_map<char, int> in_class;
   classes->clear();
@@ -74,6 +75,23 @@ void MasterMind::ColorClasses(const string& src_intent, unordered_map<char, stri
   // turn it into a map color -> class
   for (auto color: colors_)
     (*classes)[color] = class_list[in_class[color]];
+}
+
+// Take an existing equivalence relation (the list of classes) and refine
+// them by taking the information obtained from the new intent into account,
+// i.e. with the new intent, some colors will cease to be equivalent.
+void MasterMind::RefineEquivalence(const string& intent,
+                                   unordered_map<char, string>* classes) const
+{
+  unordered_map<char, string> new_classes;
+  unordered_map<char, string> intent_classes;
+  ColorClasses(new_intent, &intent_classes);
+  for (auto cls1: *classes) {
+    for (auto cls2: intent_classes) {
+      // intersect cls1 and cls2 and put in new_classes
+    }
+  }
+  // swap classes and new_classes
 }
 
 // Returns a canonical representative in the equivalence class of the intent,
@@ -101,7 +119,6 @@ string MasterMind::ColorClass(const string& intent,
   
   return repr;
 }
-
 
 void MasterMind::PositionClasses(const string& intent,
                                  vector<int>* classes) const {
