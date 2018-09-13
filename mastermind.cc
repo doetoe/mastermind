@@ -8,7 +8,6 @@
 #include <vector>
 #include <tuple>
 // #include <array>
-#include <unordered_map>
 #include <algorithm>
 using namespace std;
 
@@ -51,22 +50,58 @@ void partitions(int n, int k, vector<vector<int>>* result) {
   return partitions(n, k, n, result, prefix);
 }
 
-void MasterMind::ColorClasses(const string& intent, vector<string>* classes) const {
-  vector<int> counter(colors_.size(), 0);
-  for (auto color: intent)
-    counter[color_index_.at(color)]++;
+// NOTE: it would actually be more efficient if we would separately have
+// a vector<string> of classes, and an unordered_map<char, int> referencing
+// them, but not significantly, and it would be harder to use.
+void MasterMind::ColorClasses(const string& src_intent, unordered_map<char, string>* classes) const {
+  vector<string> class_list;
+  unordered_map<char, int> in_class;
   classes->clear();
+
+  vector<int> counter(colors_.size(), 0);
+  for (auto color: src_intent)
+    counter[color_index_.at(color)]++;
   int i = 0;
   for (auto count: counter) {
-    if (count >= classes->size()) {
-      classes->resize(count + 1);
+    if (count >= class_list.size()) {
+      class_list.resize(count + 1);
     }
-    (*classes)[count].push_back(colors_[i]);
+    char color = colors_[i];
+    class_list[count].push_back(color);
+    in_class[color] = count;
     i++;
   }
-  // remove empty classes
-  remove(classes->begin(), classes->end(), "");
+  // turn it into a map color -> class
+  for (auto color: colors_)
+    (*classes)[color] = class_list[in_class[color]];
 }
+
+// Returns a canonical representative in the equivalence class of the intent,
+// given that the equivalence classes are as specified.
+// This is done in such a way that two intents return the same value iff they
+// are equivalent.
+string MasterMind::ColorClass(const string& intent,
+                              const unordered_map<char, string>& classes) const {
+  string repr;
+  unordered_map<string, unordered_map<char, char>> mappings;
+  for (auto color: intent) {
+    string cls = classes.at(color);
+    if (mappings.count(cls) == 0) { // no mapping present for this class
+      mappings[cls] = {{color, cls[0]}};
+    }
+    else { // a mapping is present
+      if (mappings[cls].count(color) == 0) {
+        int len = mappings[cls].size();
+        mappings[cls][color] = cls[len]; // cls[mappings[cls].size()] doesn't work!
+                                         // LHS creates new entry before RHS is executed!
+      }
+    }
+    repr.push_back(mappings[cls][color]);    
+  }
+  
+  return repr;
+}
+
 
 void MasterMind::PositionClasses(const string& intent,
                                  vector<int>* classes) const {
@@ -198,13 +233,47 @@ vector<int> MasterMind::ChooseInitialIntent() const {
   }
   return intent_classes[optimal_intents.front()];    
 }
-  
+
+// Refactor this for repeated code. Also, could have equivalences after
+// the second intent.
+string MasterMind::Choose2ndIntent(const string& first_intent) const {
+  assert(!intent_candidates_.empty());
+  unordered_map<string, double> cached_intents;
+  unordered_map<char, string> classes;
+  ColorClasses(first_intent, &classes);
+  vector<int> optimal_intents;
+  double max_entropy = -1;
+  for (int i = 0; i < intent_candidates_.size(); ++i) {
+    string intent_class = ColorClass(intent_candidates_[i], classes);
+    double entropy;
+    if (cached_intents.count(intent_class) == 0)
+      cached_intents[intent_class] = Entropy(intent_class);
+    entropy = cached_intents[intent_class];
+    if (entropy >= max_entropy) {
+      if (entropy > max_entropy) {
+        optimal_intents.clear();
+        max_entropy = entropy;  
+      }
+      optimal_intents.push_back(i);
+    }
+  }
+
+  for (auto i: optimal_intents) { 
+    auto it = find(target_candidates_.begin(), target_candidates_.end(),
+                   intent_candidates_[i]);
+    if (it != target_candidates_.end())
+      return intent_candidates_[i];
+  }
+  return intent_candidates_[optimal_intents.front()];
+}
+
 string MasterMind::ChooseIntent() const {
   assert(!intent_candidates_.empty());
   vector<int> optimal_intents;
   double max_entropy = -1;
   for (int i = 0; i < intent_candidates_.size(); ++i) {
-    double entropy = Entropy(intent_candidates_[i]);
+    string intent = intent_candidates_[i];
+    double entropy = Entropy(intent);
     if (entropy >= max_entropy) {
       if (entropy > max_entropy) {
         optimal_intents.clear();
@@ -247,8 +316,8 @@ double MasterMind::Update(const string& intent, int black, int white) {
   return log2(static_cast<double>(new_candidates.size()) / target_candidates_.size());
 }
 
-int main_play(int argc, char *argv[]) {
-// int main(int argc, char *argv[]) {
+// int main_play(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   if (argc != 3) {
     std::printf("Usage: mastermind colors positions\n");
     exit(0);
@@ -264,7 +333,8 @@ int main_play(int argc, char *argv[]) {
   for (auto num: intent_class)
     cout << num << ",";
   cout << last << endl;
-
+  bool first_intent = true;
+  
   do {
     cout << "intent black white> ";
     string intent;
@@ -277,8 +347,12 @@ int main_play(int argc, char *argv[]) {
     double information = game_assistant.Update(intent, black, white);
     printf("There are %d possible targets left\n", game_assistant.num_candidates());
     printf("You gained %.2f bits of information\n", information);
-
-    printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
+    if (first_intent) {
+      printf("You could try %s\n", game_assistant.Choose2ndIntent(intent).c_str());
+      first_intent = false;
+    } else {
+      printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
+    }
   } while (game_assistant.num_candidates() != 1);
 
   printf("The only possibility is %s\n", game_assistant.target_candidates_begin()->c_str());
@@ -338,8 +412,8 @@ int main_test_candidates(int argc, char *argv[]) {
     printf("%s\n", it->c_str());
 }
 
-// int main_test_color_classes(int argc, char *argv[]) {
-int main(int argc, char *argv[]) {
+int main_test_color_classes(int argc, char *argv[]) {
+// int main(int argc, char *argv[]) {
   if (argc < 3) {
     std::printf("Usage: mastermind colors intent\n");
     exit(0);
@@ -347,10 +421,12 @@ int main(int argc, char *argv[]) {
 
   MasterMind colors(argv[1], strlen(argv[2]));
 
-  vector<string> classes;
+  unordered_map<char, string> classes;
   colors.ColorClasses(argv[2], &classes);
   for (auto cc: classes)
-    printf("%s\n", cc.c_str());
+    printf("%c -> %s\n", cc.first, cc.second.c_str());
+
+  printf("representative: %s\n", colors.ColorClass(argv[2], classes).c_str());
 }
 
 int main_test_entropy(int argc, char *argv[]) {

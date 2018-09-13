@@ -5,6 +5,7 @@
 #include <string>
 // #include <algorithm>
 #include <vector>
+#include <unordered_map>
 
 /*
   Future improvements:
@@ -88,9 +89,19 @@ class MasterMind {
 
   // Colors in the same class are equivalent if they can be freely permuted
   // without changing the entropy if all known information arises from an
-  // evaluation of the specified intent.
-  void ColorClasses(const std::string& intent,
-                    std::vector<std::string>* classes) const;
+  // evaluation of the specified intent. This function returns the equivalence
+  // classes if all present information is based on the single evaluated
+  // intent "src_intent".
+  // Each class is represented as a string of all colors in the class.
+  void ColorClasses(const std::string& src_intent,
+                    std::unordered_map<char, std::string>* classes) const;
+
+  // Given a set of equivalence classes of colors, e.g. as obtained in
+  // ColorClasses, returns a unique representative of the present intent
+  // in such a way that intents are equivalent iff they have an equal
+  // representative.
+  std::string ColorClass(const std::string& intent,
+                         const std::unordered_map<char, std::string>& classes) const;
 
   // Positions in the same class are equivalent if they can be freely permuted
   // without changing the entropy if all known information arises from an
@@ -126,7 +137,11 @@ class MasterMind {
   // partitions of the number of positions in at most n summands.
   // The best partition is returned.
   std::vector<int> ChooseInitialIntent() const;
-
+  
+  // In the given state, return an intent of maximal entropy that actually is a
+  // possible candidate. Equivalences are used to speed this up.
+  std::string Choose2ndIntent(const string& first_intent) const;
+  
   // In the given state, return an intent of maximal entropy that actually is a
   // possible candidate
   std::string ChooseIntent() const;
