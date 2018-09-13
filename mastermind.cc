@@ -366,11 +366,16 @@ int main(int argc, char *argv[]) {
     double information = game_assistant.Update(intent, black, white);
     printf("There are %d possible targets left\n", game_assistant.num_candidates());
     printf("You gained %.2f bits of information\n", information);
-    if (first_intent) {
-      printf("You could try %s\n", game_assistant.Choose2ndIntent(intent).c_str());
-      first_intent = false;
-    } else {
-      printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
+    cout << "do you want a hint (y/n) ";
+    char hint;
+    cin >> hint;
+    if (hint == 'y') {
+      if (first_intent) {
+        printf("You could try %s\n", game_assistant.Choose2ndIntent(intent).c_str());
+        first_intent = false;
+      } else {
+        printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
+      }
     }
   } while (game_assistant.num_candidates() != 1);
 
