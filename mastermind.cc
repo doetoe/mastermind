@@ -77,6 +77,7 @@ void MasterMind::ColorClasses(const string& src_intent,
     (*classes)[color] = class_list[in_class[color]];
 }
 
+/*
 // Take an existing equivalence relation (the list of classes) and refine
 // them by taking the information obtained from the new intent into account,
 // i.e. with the new intent, some colors will cease to be equivalent.
@@ -93,6 +94,7 @@ void MasterMind::RefineEquivalence(const string& intent,
   }
   // swap classes and new_classes
 }
+*/
 
 // Returns a canonical representative in the equivalence class of the intent,
 // given that the equivalence classes are as specified.
