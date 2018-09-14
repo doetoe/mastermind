@@ -9,14 +9,9 @@
 
 /*
   Future improvements:
-  - allow empty spots in guesses (i.e. a color that is not in the target)
-  - identify equivalent intents
   - remove intents that will not give extra information
     for example remove colors that cannot be in the target, leaving one if
     empty spots are not allowed
-  - when the best intents include possible configurations, pick those (the
-    reason is that a wrong intent may give you enough information to guess
-    the target, you will still have to waste an intent.
   - The greedy approach implemented here is not necessarily optimal: an
     option of maximal entropy is chosen, but the outcomes may each have
     inferior follow up entropies to a non-maximal entropy intent.
@@ -41,6 +36,7 @@ int IntersectionSize(const S& s1, const S& s2) {
 */
 
 void partitions(int n, int k, std::vector<std::vector<int>>* result);
+std::string intersect(const std::string& s1, const std::string& s2);
 
 class MasterMind {
  private:
@@ -67,7 +63,7 @@ class MasterMind {
   // std::unordered_map<char, std::string> color_classes_;
   std::vector<std::string> color_class_list_;
   std::unordered_map<char, int> color_class_index_;
-  const std::string& color_class(char color) const;
+  const std::string& ColorClass(char color) const;
 
   void BuildColorClassIndex();
   
@@ -85,6 +81,11 @@ class MasterMind {
   // The total number of possible evaluations of an intent (counting all but one
   // black, and a single white). 
   int NumResults() const { return EvaluationIndex_(num_positions_ + 1, 0); }
+
+  // Return optimal intent candidate that is also a possible target.
+  // If non of the optimal candidates is a possible target, just return
+  // any of them
+  std::string PickIntent(const std::vector<int>& optimal_intents) const;
 
  public:
   MasterMind(const std::string& colors, int num_positions)
@@ -111,34 +112,23 @@ class MasterMind {
   void ColorClasses(const std::string& intent,
                     std::vector<std::string>* classes) const;
 
-  // Returns a unique representative of the present intent
+  // Returns a unique representative of the passed intent
   // in such a way that intents are equivalent iff they have an equal
   // representative according to color equivalences in color_class_list_.
-  std::string ColorClass(const std::string& intent) const;
+  std::string IntentClass(const std::string& intent) const;
 
+  /*
   // Positions in the same class are equivalent if they can be freely permuted
   // without changing the entropy if all known information arises from an
   // evaluation of the specified intent.
   void PositionClasses(const std::string& intent,
                        std::vector<int>* classes) const;
+  */
   
-  // MasterMind(const std::string& colors, const std::string& target)
-  //     : colors_(colors),
-  //       target_(target) {
-  //   for (int i = 0; i < colors_.size(); i++) {
-  //     color_index_[colors_[i]] = i;
-  //     auto color = target_color_counter.find(target_color);
-  //     if (color != target_color_counter.end())
-  //       *color += 1;
-  //     else
-  //       target_color_counter[color] = 1;
-  //   }
-  //   // init();
-  // }
-
   // for a given target (hidden combination), return the number of black/white
   // for the given intent    
-  pair<int,int> Evaluate(const std::string& target, const std::string& intent) const;
+  static pair<int,int> Evaluate(
+      const std::string& target, const std::string& intent);
   
   // The events are the evaluations, 14 of them for four positions.
   // For a given intent, the space of targets is partitioned by the outcomes.

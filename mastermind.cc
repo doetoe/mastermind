@@ -85,7 +85,7 @@ void MasterMind::ColorClasses(const string& intent,
             [](auto s){return s.empty();});
 }
 
-const string& MasterMind::color_class(char color) const {
+const string& MasterMind::ColorClass(char color) const {
   static string emptystring("");
   if (color_class_index_.count(color) == 1)
     return color_class_list_[color_class_index_.at(color)];
@@ -97,7 +97,7 @@ const string& MasterMind::color_class(char color) const {
 // s1 and s2 are strings without repetitions, with their elements in
 // a fixed but unknown order. Returns their intersection as a string
 // without changing the order
-static string intersect(const string& s1, const string& s2) {
+string intersect(const string& s1, const string& s2) {
   string ret("");
   int i1 = 0, i2 = 0;
   for (auto c1: s1) {
@@ -135,7 +135,7 @@ void MasterMind::UpdateEquivalences(const string& intent)
   BuildColorClassIndex();
 }
 
-string MasterMind::ColorClass(const string& intent) const {
+string MasterMind::IntentClass(const string& intent) const {
   string repr;
   vector<unordered_map<char, char>> mappings(color_class_list_.size());
   for (auto color: intent) {
@@ -150,11 +150,6 @@ string MasterMind::ColorClass(const string& intent) const {
   }
   
   return repr;
-}
-
-void MasterMind::PositionClasses(const string& intent,
-                                 vector<int>* classes) const {
-  // to be implemented
 }
 
 std::string MasterMind::cc2string(const ColorComb& cc) const {
@@ -210,11 +205,11 @@ pair<int,int> MasterMind::Evaluate(const string& target, const string& intent) c
 }
 */
 
-pair<int,int> MasterMind::Evaluate(const string& target, const string& intent) const {
+pair<int,int> MasterMind::Evaluate(const string& target, const string& intent) {
   int black = 0, white = 0;
   // present_colors[c] = number of c in intent - number of c in target so far 
   unordered_map<char, int> present_colors;
-  for (int i = 0; i < num_positions_; i++) {
+  for (int i = 0; i < target.size(); i++) {
     char target_color = target[i];
     char intent_color = intent[i];
     if (target_color == intent_color) {
@@ -251,6 +246,23 @@ double MasterMind::Entropy(const string& intent) const {
   }
   return S;
 }
+
+// If the candidate of the given index, with the specified entropy,
+// improves on the maximal entropy, replace the optimal_intents
+// by this one. If it is equal, it is added to the optimal_intents.
+// Returns the new max_entropy.
+static double updateOptimalIntents(
+    int intent_index, double intent_entropy,
+    double max_entropy, vector<int>* optimal_intents) {
+  if (intent_entropy >= max_entropy) {
+    if (intent_entropy > max_entropy) {
+      optimal_intents->clear();
+      max_entropy = intent_entropy;  
+    }
+    optimal_intents->push_back(intent_index);
+  }
+  return max_entropy;
+}
   
 // For n colors, equivalence classes of starting positions correspond to
 // partitions of the number of positions in at most n summands.
@@ -269,7 +281,11 @@ vector<int> MasterMind::ChooseInitialIntent() const {
       intent += string(num, colors_[j]);
       j++;
     }
-    
+
+    max_entropy = updateOptimalIntents(
+        i, Entropy(intent), max_entropy, &optimal_intents);
+
+    /*
     double entropy = Entropy(intent);
     // cout << intent << ": " << entropy << endl;
     if (entropy >= max_entropy) {
@@ -279,9 +295,22 @@ vector<int> MasterMind::ChooseInitialIntent() const {
       }
       optimal_intents.push_back(i);
     }
+    */
   }
+  
   return intent_classes[optimal_intents.front()];    
 }
+
+string MasterMind::PickIntent(const vector<int>& optimal_intents) const {
+  for (auto i: optimal_intents) { 
+    auto it = find(target_candidates_.begin(), target_candidates_.end(),
+                   intent_candidates_[i]);
+    if (it != target_candidates_.end())
+      return intent_candidates_[i];
+  }
+  return intent_candidates_[optimal_intents.front()];
+}
+
 
 // Refactor this for repeated code.
 string MasterMind::Choose2ndIntent() const {
@@ -290,11 +319,15 @@ string MasterMind::Choose2ndIntent() const {
   vector<int> optimal_intents;
   double max_entropy = -1;
   for (int i = 0; i < intent_candidates_.size(); ++i) {
-    string intent_class = ColorClass(intent_candidates_[i]);
-    double entropy;
+    string intent_class = IntentClass(intent_candidates_[i]);
     if (cached_intents.count(intent_class) == 0)
       cached_intents[intent_class] = Entropy(intent_class);
-    entropy = cached_intents[intent_class];
+
+    max_entropy = updateOptimalIntents(
+        i, cached_intents[intent_class], max_entropy, &optimal_intents);
+
+    /*    
+    double entropy = cached_intents[intent_class];
     if (entropy >= max_entropy) {
       if (entropy > max_entropy) {
         optimal_intents.clear();
@@ -302,15 +335,10 @@ string MasterMind::Choose2ndIntent() const {
       }
       optimal_intents.push_back(i);
     }
+    */
   }
 
-  for (auto i: optimal_intents) { 
-    auto it = find(target_candidates_.begin(), target_candidates_.end(),
-                   intent_candidates_[i]);
-    if (it != target_candidates_.end())
-      return intent_candidates_[i];
-  }
-  return intent_candidates_[optimal_intents.front()];
+  return PickIntent(optimal_intents);
 }
 
 string MasterMind::ChooseIntent() const {
@@ -319,6 +347,11 @@ string MasterMind::ChooseIntent() const {
   double max_entropy = -1;
   for (int i = 0; i < intent_candidates_.size(); ++i) {
     string intent = intent_candidates_[i];
+
+    max_entropy = updateOptimalIntents(
+        i, Entropy(intent), max_entropy, &optimal_intents);
+
+    /*    
     double entropy = Entropy(intent);
     if (entropy >= max_entropy) {
       if (entropy > max_entropy) {
@@ -327,28 +360,9 @@ string MasterMind::ChooseIntent() const {
       }
       optimal_intents.push_back(i);
     }
+    */
   }
-  
-  // printf("pushed %zi candidates\n", optimal_intents.size());
-  // Among the optimal intents, choose one that is possible, and within
-  // those, choose a random one (future).
-
-  /*
-  auto it = find_first_of(target_candidates_.begin(), target_candidates_.end(),
-                          optimal_intents.begin(), optimal_intents.end());
-  if (it != target_candidates_.end())
-    return *it;
-  else
-    return intent_candidates_[optimal_intents.front()];
-  */
-  // optimal intent candidate that is also a possible target
-  for (auto i: optimal_intents) { 
-    auto it = find(target_candidates_.begin(), target_candidates_.end(),
-                   intent_candidates_[i]);
-    if (it != target_candidates_.end())
-      return intent_candidates_[i];
-  }
-  return intent_candidates_[optimal_intents.front()];
+  return PickIntent(optimal_intents);
 }
 
 double MasterMind::Update(const string& intent, int black, int white) {
@@ -381,7 +395,7 @@ int main(int argc, char *argv[]) {
     cout << num << ",";
   cout << last << endl;
   
-  do {
+  while (true) {
     cout << "intent black white> ";
     string intent;
     int black, white;
@@ -391,8 +405,12 @@ int main(int argc, char *argv[]) {
            game_assistant.Entropy(intent));
     
     double information = game_assistant.Update(intent, black, white);
-    printf("There are %d possible targets left\n", game_assistant.num_candidates());
     printf("You gained %.2f bits of information\n", information);
+
+    if (game_assistant.num_candidates() == 1)
+      break;
+    
+    printf("There are %d possible targets left\n", game_assistant.num_candidates());
     cout << "do you want a hint (y/n) ";
     char hint;
     cin >> hint;
@@ -403,7 +421,7 @@ int main(int argc, char *argv[]) {
         printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
       }
     }
-  } while (game_assistant.num_candidates() != 1);
+  }
 
   printf("The only possibility is %s\n", game_assistant.target_candidates_begin()->c_str());
 }
@@ -477,7 +495,7 @@ int main_test_color_classes(int argc, char *argv[]) {
     printf("%s\n", cc.c_str());
 
   colors.UpdateEquivalences(argv[2]);
-  printf("representative: %s\n", colors.ColorClass(argv[2]).c_str());
+  printf("representative: %s\n", colors.IntentClass(argv[2]).c_str());
 }
 
 int main_test_entropy(int argc, char *argv[]) {
