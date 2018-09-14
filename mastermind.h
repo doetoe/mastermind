@@ -58,6 +58,19 @@ class MasterMind {
   //std::vector<ColorComb> intent_candidates_;
   std::vector<std::string> intent_candidates_;
 
+  // Early on, we can a priori say that permuting some colors will not
+  // change the information content:
+  // - before the first intent, all colors are equivalent
+  // - at every moment, all colors that haven't been used yet are equivalent
+  // - etc.
+  // This map keeps track of the color classes.
+  // std::unordered_map<char, std::string> color_classes_;
+  std::vector<std::string> color_class_list_;
+  std::unordered_map<char, int> color_class_index_;
+  const std::string& color_class(char color) const;
+
+  void BuildColorClassIndex();
+  
   // generates all possible targets in target_candidates_
   void GenerateTargetCandidates(int length=-1, const std::string& prefix="");
   
@@ -72,14 +85,17 @@ class MasterMind {
   // The total number of possible evaluations of an intent (counting all but one
   // black, and a single white). 
   int NumResults() const { return EvaluationIndex_(num_positions_ + 1, 0); }
-  
+
  public:
   MasterMind(const std::string& colors, int num_positions)
       : colors_(colors),
         num_positions_(num_positions) {
-    for (int i = 0; i < colors_.size(); i++)
+    color_class_list_ = {colors_};
+    for (int i = 0; i < colors_.size(); i++) {
       color_index_[colors_[i]] = i;
-
+      color_class_index_[colors_[i]] = 0;
+    }
+    
     GenerateTargetCandidates();
     intent_candidates_ = target_candidates_; // deep copy
   }
@@ -91,17 +107,14 @@ class MasterMind {
   // without changing the entropy if all known information arises from an
   // evaluation of the specified intent. This function returns the equivalence
   // classes if all present information is based on the single evaluated
-  // intent "src_intent".
-  // Each class is represented as a string of all colors in the class.
-  void ColorClasses(const std::string& src_intent,
-                    std::unordered_map<char, std::string>* classes) const;
+  // intent "intent".
+  void ColorClasses(const std::string& intent,
+                    std::vector<std::string>* classes) const;
 
-  // Given a set of equivalence classes of colors, e.g. as obtained in
-  // ColorClasses, returns a unique representative of the present intent
+  // Returns a unique representative of the present intent
   // in such a way that intents are equivalent iff they have an equal
-  // representative.
-  std::string ColorClass(const std::string& intent,
-                         const std::unordered_map<char, std::string>& classes) const;
+  // representative according to color equivalences in color_class_list_.
+  std::string ColorClass(const std::string& intent) const;
 
   // Positions in the same class are equivalent if they can be freely permuted
   // without changing the entropy if all known information arises from an
@@ -140,11 +153,18 @@ class MasterMind {
   
   // In the given state, return an intent of maximal entropy that actually is a
   // possible candidate. Equivalences are used to speed this up.
-  std::string Choose2ndIntent(const string& first_intent) const;
+  std::string Choose2ndIntent() const;
   
   // In the given state, return an intent of maximal entropy that actually is a
   // possible candidate
   std::string ChooseIntent() const;
+
+  bool exist_equivalences() const {return color_class_list_.size() != colors_.size();}
+
+  // Update the existing equivalence relation (the list of color classes) and
+  // refine it by taking the information obtained from the new intent into
+  // account, i.e. with the new intent, some colors will cease to be equivalent.
+  void UpdateEquivalences(const string& intent);
   
   // Updates the candidate lists assuming the passed intent resulted in the
   // specified numbers of black and white

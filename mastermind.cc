@@ -50,71 +50,101 @@ void partitions(int n, int k, vector<vector<int>>* result) {
   return partitions(n, k, n, result, prefix);
 }
 
+
+void MasterMind::BuildColorClassIndex() {
+  color_class_index_.clear();
+  int i = 0;
+  for (auto cls: color_class_list_) {
+    for (auto color: cls) {
+      color_class_index_[color] = i;
+    }
+    i++;
+  } 
+}
+  
 // NOTE: it would actually be more efficient if we would separately have
 // a vector<string> of classes, and an unordered_map<char, int> referencing
-// them, but not significantly, and it would be harder to use.
-void MasterMind::ColorClasses(const string& src_intent,
-                              unordered_map<char, string>* classes) const {
-  vector<string> class_list;
-  unordered_map<char, int> in_class;
+// them, but not significantly.
+void MasterMind::ColorClasses(const string& intent,
+                              vector<string>* classes) const {
   classes->clear();
 
   vector<int> counter(colors_.size(), 0);
-  for (auto color: src_intent)
+  for (auto color: intent)
     counter[color_index_.at(color)]++;
   int i = 0;
   for (auto count: counter) {
-    if (count >= class_list.size()) {
-      class_list.resize(count + 1);
+    if (count >= classes->size()) {
+      classes->resize(count + 1);
     }
     char color = colors_[i];
-    class_list[count].push_back(color);
-    in_class[color] = count;
+    (*classes)[count].push_back(color);
     i++;
   }
-  // turn it into a map color -> class
-  for (auto color: colors_)
-    (*classes)[color] = class_list[in_class[color]];
+  remove_if(classes->begin(), classes->end(),
+            [](auto s){return s.empty();});
 }
 
-/*
-// Take an existing equivalence relation (the list of classes) and refine
-// them by taking the information obtained from the new intent into account,
-// i.e. with the new intent, some colors will cease to be equivalent.
-void MasterMind::RefineEquivalence(const string& intent,
-                                   unordered_map<char, string>* classes) const
-{
-  unordered_map<char, string> new_classes;
-  unordered_map<char, string> intent_classes;
-  ColorClasses(new_intent, &intent_classes);
-  for (auto cls1: *classes) {
-    for (auto cls2: intent_classes) {
-      // intersect cls1 and cls2 and put in new_classes
+const string& MasterMind::color_class(char color) const {
+  static string emptystring("");
+  if (color_class_index_.count(color) == 1)
+    return color_class_list_[color_class_index_.at(color)];
+  else
+    return emptystring;
+}
+
+
+// s1 and s2 are strings without repetitions, with their elements in
+// a fixed but unknown order. Returns their intersection as a string
+// without changing the order
+static string intersect(const string& s1, const string& s2) {
+  string ret("");
+  int i1 = 0, i2 = 0;
+  for (auto c1: s1) {
+    for (i2 = i1; i2 < s2.size(); i2++) {
+      if (c1 == s2[i2]) {
+        ret.push_back(c1);
+        i2++;
+        break;
+      }
     }
   }
-  // swap classes and new_classes
+  return ret;
 }
-*/
 
-// Returns a canonical representative in the equivalence class of the intent,
-// given that the equivalence classes are as specified.
-// This is done in such a way that two intents return the same value iff they
-// are equivalent.
-string MasterMind::ColorClass(const string& intent,
-                              const unordered_map<char, string>& classes) const {
-  string repr;
-  unordered_map<string, unordered_map<char, char>> mappings;
-  for (auto color: intent) {
-    string cls = classes.at(color);
-    if (mappings.count(cls) == 0) { // no mapping present for this class
-      mappings[cls] = {{color, cls[0]}};
-    }
-    else { // a mapping is present
-      if (mappings[cls].count(color) == 0) {
-        int len = mappings[cls].size();
-        mappings[cls][color] = cls[len]; // cls[mappings[cls].size()] doesn't work!
-                                         // LHS creates new entry before RHS is executed!
+// Update the existing equivalence relation (the list of color classes) and
+// refine it by taking the information obtained from the new intent into
+// account, i.e. with the new intent, some colors will cease to be equivalent.
+void MasterMind::UpdateEquivalences(const string& intent)
+{
+  if (!exist_equivalences()) // cannot refine further
+    return;
+  vector<string> new_classes;
+  vector<string> intent_classes;
+  ColorClasses(intent, &intent_classes);
+  for (auto cls1: color_class_list_) {
+    for (auto cls2: intent_classes) {
+      string intersection = intersect(cls1, cls2);
+      if (!intersection.empty())
+      {
+        new_classes.push_back(intersection);
       }
+    }
+  }
+  swap(color_class_list_, new_classes);
+  BuildColorClassIndex();
+}
+
+string MasterMind::ColorClass(const string& intent) const {
+  string repr;
+  vector<unordered_map<char, char>> mappings(color_class_list_.size());
+  for (auto color: intent) {
+    int cls = color_class_index_.at(color);
+    if (mappings[cls].count(color) == 0) {
+      int len = mappings[cls].size();
+      // cls[mappings[cls].size()] doesn't work!
+      // LHS creates new entry before RHS is executed!
+      mappings[cls][color] = color_class_list_[cls][len];
     }
     repr.push_back(mappings[cls][color]);    
   }
@@ -253,17 +283,14 @@ vector<int> MasterMind::ChooseInitialIntent() const {
   return intent_classes[optimal_intents.front()];    
 }
 
-// Refactor this for repeated code. Also, could have equivalences after
-// the second intent.
-string MasterMind::Choose2ndIntent(const string& first_intent) const {
+// Refactor this for repeated code.
+string MasterMind::Choose2ndIntent() const {
   assert(!intent_candidates_.empty());
   unordered_map<string, double> cached_intents;
-  unordered_map<char, string> classes;
-  ColorClasses(first_intent, &classes);
   vector<int> optimal_intents;
   double max_entropy = -1;
   for (int i = 0; i < intent_candidates_.size(); ++i) {
-    string intent_class = ColorClass(intent_candidates_[i], classes);
+    string intent_class = ColorClass(intent_candidates_[i]);
     double entropy;
     if (cached_intents.count(intent_class) == 0)
       cached_intents[intent_class] = Entropy(intent_class);
@@ -331,7 +358,8 @@ double MasterMind::Update(const string& intent, int black, int white) {
                  inserter(new_candidates, new_candidates.end()),
                  [&intent, result, this](const string& target)
                  { return EvaluationNumerical_(target, intent) != result; });
-  swap(target_candidates_, new_candidates);    
+  swap(target_candidates_, new_candidates);
+  UpdateEquivalences(intent);
   return log2(static_cast<double>(new_candidates.size()) / target_candidates_.size());
 }
 
@@ -352,7 +380,6 @@ int main(int argc, char *argv[]) {
   for (auto num: intent_class)
     cout << num << ",";
   cout << last << endl;
-  bool first_intent = true;
   
   do {
     cout << "intent black white> ";
@@ -370,9 +397,8 @@ int main(int argc, char *argv[]) {
     char hint;
     cin >> hint;
     if (hint == 'y') {
-      if (first_intent) {
-        printf("You could try %s\n", game_assistant.Choose2ndIntent(intent).c_str());
-        first_intent = false;
+      if (game_assistant.exist_equivalences()) {
+        printf("You could try %s\n", game_assistant.Choose2ndIntent().c_str());
       } else {
         printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
       }
@@ -445,12 +471,13 @@ int main_test_color_classes(int argc, char *argv[]) {
 
   MasterMind colors(argv[1], strlen(argv[2]));
 
-  unordered_map<char, string> classes;
+  vector<string> classes;
   colors.ColorClasses(argv[2], &classes);
   for (auto cc: classes)
-    printf("%c -> %s\n", cc.first, cc.second.c_str());
+    printf("%s\n", cc.c_str());
 
-  printf("representative: %s\n", colors.ColorClass(argv[2], classes).c_str());
+  colors.UpdateEquivalences(argv[2]);
+  printf("representative: %s\n", colors.ColorClass(argv[2]).c_str());
 }
 
 int main_test_entropy(int argc, char *argv[]) {
@@ -557,7 +584,6 @@ int MasterMind::test_to_from_string(const string& colors,
   return 0;
 }
 
-
 int main_test_to_from_string(int argc, char *argv[]) {
 // int main(int argc, char *argv[]) {
   if (argc < 4) {
@@ -566,5 +592,15 @@ int main_test_to_from_string(int argc, char *argv[]) {
   }
 
   return MasterMind::test_to_from_string(argv[1], argv[2], argv[3]);
+}
+
+int main_test_intersect(int argc, char *argv[]) {
+// int main(int argc, char *argv[]) {
+  if (argc < 3) {
+    std::printf("Usage: mastermind string1 string2\n");
+    exit(0);
+  }
+
+  printf("%s\n", intersect(argv[1], argv[2]).c_str());
 }
 
