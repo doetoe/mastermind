@@ -414,7 +414,7 @@ int main(int argc, char *argv[]) {
     cout << "do you want a hint (y/n) ";
     char hint;
     cin >> hint;
-    if (hint == 'y') {
+    if (hint == 'y' || hint == 'Y') {
       string proposal = game_assistant.exist_equivalences() ?
 	game_assistant.Choose2ndIntent() :
 	game_assistant.ChooseIntent();
