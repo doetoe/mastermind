@@ -415,11 +415,11 @@ int main(int argc, char *argv[]) {
     char hint;
     cin >> hint;
     if (hint == 'y') {
-      if (game_assistant.exist_equivalences()) {
-        printf("You could try %s\n", game_assistant.Choose2ndIntent().c_str());
-      } else {
-        printf("You could try %s\n", game_assistant.ChooseIntent().c_str());
-      }
+      string proposal = game_assistant.exist_equivalences() ?
+	game_assistant.Choose2ndIntent() :
+	game_assistant.ChooseIntent();
+      printf("You could try %s (entropy %.2f bits)\n",
+	     proposal.c_str(), game_assistant.Entropy(proposal));
     }
   }
 
@@ -443,6 +443,7 @@ int main_test_constructor(int argc, char *argv[]) {
   string result;
   getline(cin, result);
   printf("%s\n", result.c_str());
+  return 0;
 }
 
 int main_test_evaluation(int argc, char *argv[]) {
@@ -465,6 +466,7 @@ int main_test_evaluation(int argc, char *argv[]) {
   auto bw = colors.Evaluate(target, intent);
   printf("%s with %s: black: %d, white: %d\n",
          target.c_str(), intent.c_str(), bw.first, bw.second);
+  return 0;
 }
 
 int main_test_candidates(int argc, char *argv[]) {
@@ -478,6 +480,7 @@ int main_test_candidates(int argc, char *argv[]) {
   for (auto it = colors.target_candidates_begin();
        it < colors.target_candidates_end(); ++it)
     printf("%s\n", it->c_str());
+  return 0;
 }
 
 int main_test_color_classes(int argc, char *argv[]) {
@@ -496,6 +499,7 @@ int main_test_color_classes(int argc, char *argv[]) {
 
   colors.UpdateEquivalences(argv[2]);
   printf("representative: %s\n", colors.IntentClass(argv[2]).c_str());
+  return 0;
 }
 
 int main_test_entropy(int argc, char *argv[]) {
@@ -508,6 +512,7 @@ int main_test_entropy(int argc, char *argv[]) {
   MasterMind colors(argv[1], strlen(argv[2]));
   printf("The entropy of %s when there are %lu colors is %f\n",
          argv[2], strlen(argv[1]), colors.Entropy(string(argv[2])));
+  return 0;
 }
 
 int main_test_choose(int argc, char *argv[]) {
@@ -519,6 +524,7 @@ int main_test_choose(int argc, char *argv[]) {
 
   MasterMind colors(argv[1], atoi(argv[2]));
   printf("You could try %s\n", colors.ChooseIntent().c_str());
+  return 0;
 }
 
 int main_partitions(int argc, char *argv[]) {
@@ -536,6 +542,7 @@ int main_partitions(int argc, char *argv[]) {
       cout << elt << " + ";
     cout << endl;
   }    
+  return 0;
 }
 
 int main_test_choose_initial(int argc, char *argv[]) {
@@ -554,6 +561,7 @@ int main_test_choose_initial(int argc, char *argv[]) {
   for (auto num: intent_class)
     cout << num << ",";
   cout << last << endl;
+  return 0;
 }
 
 int main_test_update(int argc, char *argv[]) {
@@ -577,6 +585,7 @@ int main_test_update(int argc, char *argv[]) {
        it != colors.target_candidates_end(); ++it)
     cout << *it << ' ';
   cout << endl;
+  return 0;
 }
 
 int MasterMind::test_to_from_string(const string& colors,
@@ -620,5 +629,6 @@ int main_test_intersect(int argc, char *argv[]) {
   }
 
   printf("%s\n", intersect(argv[1], argv[2]).c_str());
+  return 0;
 }
 
